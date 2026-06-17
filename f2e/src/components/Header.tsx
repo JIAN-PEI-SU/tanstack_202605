@@ -34,31 +34,12 @@ export default function Header() {
             Todo List
           </Link>
 
-
-          {/* <div className="nav-link" onClick={() => navigate({
-            to: "/todoList/$content",
-            params: { content: 'sue' },
-            search: { keyword: 'sue' },
-            viewTransition: true
-          })}>Sue</div> */}
           <Link
-            to="/todoList/$content"
-            params={{ content: 'sue' }}
+            to="/form"
             className="nav-link"
-            search={{ keyword: '' }}
             viewTransition={true}
-            // ?????
             activeProps={{ className: 'nav-link is-active' }}
-          >content</Link>
-          <Link
-            to="/sue"
-            // params={{ content: 'sue' }}
-            className="nav-link"
-            search={{ keyword: '' }}
-            viewTransition={true}
-            // ?????
-            activeProps={{ className: 'nav-link is-active' }}
-          >Sue</Link>
+          >Form</Link>
 
 
         </div>
