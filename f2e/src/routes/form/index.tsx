@@ -10,11 +10,9 @@ interface FormData {
   radio: string
   checkbox: string[]
 }
-
 type FormKey = keyof FormData
-
 type FieldType = 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'file'
-
+type FormAction = 'NEXT' | 'BACK' | 'SUBMIT' | 'RESET'
 interface FieldConfig {
   key: FormKey
   label: string
@@ -36,7 +34,7 @@ const DEFAULT_DATA: FormData = {
   radio: '',
   checkbox: [],
 }
-
+//---
 const STEPS: { title: string; fields: FieldConfig[] }[] = [
   {
     title: '步驟一',
@@ -82,7 +80,7 @@ const STEPS: { title: string; fields: FieldConfig[] }[] = [
     ],
   },
 ]
-
+//---
 function save(step: number, data: FormData) {
   sessionStorage.setItem(
     STORAGE_KEY,
@@ -92,30 +90,25 @@ function save(step: number, data: FormData) {
     }),
   )
 }
-
 function load(): { step: number; data: FormData } | null {
   const raw = sessionStorage.getItem(STORAGE_KEY)
   return raw ? JSON.parse(raw) : null
 }
-
 function clear() {
   sessionStorage.removeItem(STORAGE_KEY)
 }
-
+//---
 export const Route = createFileRoute('/form/')({
   component: FormPage,
 })
-
+//---
 function FormPage() {
   const saved = load()
-
   const [step, setStep] = useState(saved?.step ?? 0)
-
   const [formData, setFormData] = useState<FormData>(() => ({
     ...DEFAULT_DATA,
     ...saved?.data,
   }))
-
   const [errors, setErrors] = useState<Errors>({})
   const [submitted, setSubmitted] = useState(false)
 
@@ -124,36 +117,39 @@ function FormPage() {
     save(step, formData)
   }, [step, formData])
 
-  const handleChange = useCallback(<K extends FormKey>(key: K, value: FormData[K]) => {
-    setFormData(prev => ({
-      ...prev,
-      [key]: value,
-    }))
 
+  const handleChange = useCallback((key: FormKey, rawValue: any) => {
+    setFormData(prev => {
+      let nextValue = rawValue
+
+      if (key === 'file') {
+        const file = rawValue as File | null
+        return {
+          ...prev,
+          file: file,
+          fileName: file ? file.name : '',
+        }
+      }
+      if (key === 'checkbox') {
+        const item = rawValue as string
+        const currentList = prev.checkbox
+        const updatedList = currentList.includes(item)
+          ? currentList.filter(i => i !== item)
+          : [...currentList, item]
+
+        return { ...prev, checkbox: updatedList }
+      }
+      return {
+        ...prev,
+        [key]: nextValue,
+      }
+    })
     setErrors(prev => {
       const next = { ...prev }
       delete next[key]
       return next
     })
   }, [])
-
-  const handleFile = (file: File) => {
-    setFormData(prev => ({
-      ...prev,
-      file,
-      fileName: file.name,
-    }))
-  }
-
-  const toggleInterest = (value: string) => {
-    setFormData(prev => {
-      const next = prev.checkbox.includes(value)
-        ? prev.checkbox.filter(i => i !== value)
-        : [...prev.checkbox, value]
-
-      return { ...prev, checkbox: next }
-    })
-  }
 
   const validate = (stepIndex: number): Errors => {
     const fields = STEPS[stepIndex].fields
@@ -162,9 +158,7 @@ function FormPage() {
     fields.forEach(field => {
       const value = formData[field.key]
       if (!field.errorText) return
-
       let hasError = false
-
       if (field.key === 'checkbox') {
         hasError = formData.checkbox.length === 0
       } else if (field.key === 'file') {
@@ -172,58 +166,50 @@ function FormPage() {
       } else {
         hasError = !String(value).trim()
       }
-
-      if (hasError) {
-        e[field.key] = field.errorText
-      }
+      if (hasError) e[field.key] = field.errorText
     })
-
     return e
   }
 
-  const next = () => {
-    const e = validate(step)
-
-    if (Object.keys(e).length > 0) {
-      setErrors(e)
-      return
+  const handleAction = (action: FormAction) => {
+    if (action === 'NEXT' || action === 'SUBMIT') {
+      const e = validate(step)
+      if (Object.keys(e).length > 0) {
+        setErrors(e)
+        return
+      }
     }
+    switch (action) {
+      case 'NEXT':
+        setStep(s => s + 1)
+        break
 
-    setErrors({})
-    setStep(s => s + 1)
-  }
+      case 'BACK':
+        setStep(s => s - 1)
+        setErrors({})
+        break
 
-  const back = () => {
-    setStep(s => s - 1)
-    setErrors({})
-  }
+      case 'SUBMIT':
+        console.log('submit:', formData)
+        clear()
+        setSubmitted(true)
+        break
 
-  const submit = () => {
-    const e = validate(step)
-
-    if (Object.keys(e).length > 0) {
-      setErrors(e)
-      return
+      case 'RESET':
+        setFormData(DEFAULT_DATA)
+        setStep(0)
+        setErrors({})
+        setSubmitted(false)
+        clear()
+        break
     }
-
-    console.log('submit:', formData)
-
-    clear()
-    setSubmitted(true)
   }
 
-  const reset = () => {
-    setFormData(DEFAULT_DATA)
-    setStep(0)
-    setErrors({})
-    setSubmitted(false)
-    clear()
-  }
 
   if (submitted) {
     return (
       <main className="max-w-md mx-auto pt-10">
-        <h2 className="text-green-600 font-bold mb-4">
+        <h2 className="font-bold mb-4">
           送出成功
         </h2>
 
@@ -231,9 +217,8 @@ function FormPage() {
           {JSON.stringify(formData, null, 2)}
         </pre>
         <div className="flex gap-4 pt-2">
-
           <button
-            onClick={reset}
+            onClick={() => handleAction('RESET')}
             className="flex-1 px-4 py-2 text-white rounded bg-(--sea-ink-soft) hover:bg-(--sea-ink)"
           >
             重新填寫
@@ -304,7 +289,7 @@ function FormPage() {
                       <input
                         type="file"
                         className="hidden"
-                        onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
+                        onChange={e => e.target.files?.[0] && handleChange('file', e.target.files[0])}
                       />
                     </label>
                   )
@@ -346,7 +331,7 @@ function FormPage() {
                           <input
                             type="checkbox"
                             checked={formData.checkbox.includes(opt)}
-                            onChange={() => toggleInterest(opt)}
+                            onChange={() => handleChange('checkbox', opt)}
                           />
                           {opt}
                         </label>
@@ -362,19 +347,29 @@ function FormPage() {
           </div>
         )
       })}
+      {/* 按鈕 */}
       <div className="flex gap-2 pt-2">
         {step > 0 && (
-          <button onClick={back} className="flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded">
+          <button
+            onClick={() => handleAction('BACK')}
+            className="flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded"
+          >
             上一步
           </button>
         )}
 
         {step < STEPS.length - 1 ? (
-          <button onClick={next} className="flex-1 px-4 py-2 text-white rounded bg-(--sea-ink-soft) hover:bg-(--sea-ink)">
+          <button
+            onClick={() => handleAction('NEXT')}
+            className="flex-1 px-4 py-2 text-white rounded bg-(--sea-ink-soft) hover:bg-(--sea-ink)"
+          >
             下一步
           </button>
         ) : (
-          <button onClick={submit} className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded">
+          <button
+            onClick={() => handleAction('SUBMIT')}
+            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded"
+          >
             送出
           </button>
         )}
