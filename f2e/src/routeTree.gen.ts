@@ -14,6 +14,7 @@ import { Route as Page2RouteImport } from './routes/$page2'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TodoListIndexRouteImport } from './routes/todoList/index'
 import { Route as SueIndexRouteImport } from './routes/sue/index'
+import { Route as FormIndexRouteImport } from './routes/form/index'
 import { Route as TodoListContentRouteImport } from './routes/todoList/$content'
 import { Route as pagesNewsRouteImport } from './routes/(pages)/news'
 
@@ -42,6 +43,11 @@ const SueIndexRoute = SueIndexRouteImport.update({
   path: '/sue/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FormIndexRoute = FormIndexRouteImport.update({
+  id: '/form/',
+  path: '/form/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TodoListContentRoute = TodoListContentRouteImport.update({
   id: '/todoList/$content',
   path: '/todoList/$content',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/news': typeof pagesNewsRoute
   '/todoList/$content': typeof TodoListContentRoute
+  '/form/': typeof FormIndexRoute
   '/sue/': typeof SueIndexRoute
   '/todoList/': typeof TodoListIndexRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/news': typeof pagesNewsRoute
   '/todoList/$content': typeof TodoListContentRoute
+  '/form': typeof FormIndexRoute
   '/sue': typeof SueIndexRoute
   '/todoList': typeof TodoListIndexRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/(pages)/news': typeof pagesNewsRoute
   '/todoList/$content': typeof TodoListContentRoute
+  '/form/': typeof FormIndexRoute
   '/sue/': typeof SueIndexRoute
   '/todoList/': typeof TodoListIndexRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/news'
     | '/todoList/$content'
+    | '/form/'
     | '/sue/'
     | '/todoList/'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/news'
     | '/todoList/$content'
+    | '/form'
     | '/sue'
     | '/todoList'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/(pages)/news'
     | '/todoList/$content'
+    | '/form/'
     | '/sue/'
     | '/todoList/'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   pagesNewsRoute: typeof pagesNewsRoute
   TodoListContentRoute: typeof TodoListContentRoute
+  FormIndexRoute: typeof FormIndexRoute
   SueIndexRoute: typeof SueIndexRoute
   TodoListIndexRoute: typeof TodoListIndexRoute
 }
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SueIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/form/': {
+      id: '/form/'
+      path: '/form'
+      fullPath: '/form/'
+      preLoaderRoute: typeof FormIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/todoList/$content': {
       id: '/todoList/$content'
       path: '/todoList/$content'
@@ -181,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   pagesNewsRoute: pagesNewsRoute,
   TodoListContentRoute: TodoListContentRoute,
+  FormIndexRoute: FormIndexRoute,
   SueIndexRoute: SueIndexRoute,
   TodoListIndexRoute: TodoListIndexRoute,
 }

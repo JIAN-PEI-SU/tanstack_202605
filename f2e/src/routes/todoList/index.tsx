@@ -47,14 +47,22 @@ function App() {
 
   // 新增
   const addTodo = (text: string) => {
-    setTodos((prev) => [
-      ...prev,
-      {
+    setTodos((prev) => {
+      const newData = [...prev, {
         id: Date.now(),
         text,
         done: false
-      },
-    ]);
+      }];
+      document.cookie = `_todos=${JSON.stringify(todos)}`;
+      return [
+        ...prev,
+        {
+          id: Date.now(),
+          text,
+          done: false
+        },
+      ]
+    });
   };
 
   // 勾選
