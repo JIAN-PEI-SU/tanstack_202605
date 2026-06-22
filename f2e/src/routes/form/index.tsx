@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useCallback, useEffect, useState } from 'react'
+import { createServerFn } from '@tanstack/react-start'
+import { getCookies } from '@tanstack/react-start/server'
+import { useEffect, useState } from 'react'
 
 interface FormData {
   name: string
@@ -82,48 +84,67 @@ const STEPS: { title: string; fields: FieldConfig[] }[] = [
 ]
 //---
 function save(step: number, data: FormData) {
-  sessionStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      step,
-      data: { ...data, file: null },
-    }),
-  )
+  const storageData = JSON.stringify({
+    step,
+    data: { ...data, file: null },
+  })
+  document.cookie = `${STORAGE_KEY}=${storageData}; path=/; max-age=86400;`
 }
-function load(): { step: number; data: FormData } | null {
-  const raw = sessionStorage.getItem(STORAGE_KEY)
-  return raw ? JSON.parse(raw) : null
-}
+const fetchFormDataFromCookie = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    const cookies = getCookies()
+    const rawCookie = cookies[STORAGE_KEY]
+    const data = rawCookie ? JSON.parse(rawCookie) : null
+    return data
+  })
 function clear() {
-  sessionStorage.removeItem(STORAGE_KEY)
+  document.cookie = `${STORAGE_KEY}=; path=/; max-age=0;`
+}
+
+// 把 File 物件轉成 Base64 字串的函式
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = (error) => reject(error)
+  })
 }
 //---
 export const Route = createFileRoute('/form/')({
+  beforeLoad: async () => {
+    const initialFormData = await fetchFormDataFromCookie()
+    return {
+      initialFormData,
+    }
+  },
   component: FormPage,
 })
 //---
 function FormPage() {
-  const saved = load()
-  const [step, setStep] = useState(saved?.step ?? 0)
+  const { initialFormData } = Route.useRouteContext()
+  const [step, setStep] = useState(initialFormData?.step ?? 0)
   const [formData, setFormData] = useState<FormData>(() => ({
     ...DEFAULT_DATA,
-    ...saved?.data,
+    ...initialFormData?.data,
   }))
   const [errors, setErrors] = useState<Errors>({})
   const [submitted, setSubmitted] = useState(false)
-
+  console.log(initialFormData)
 
   useEffect(() => {
     save(step, formData)
   }, [step, formData])
 
 
-  const handleChange = useCallback((key: FormKey, rawValue: any) => {
+  const handleChange = (key: FormKey, rawValue: any) => {
     setFormData(prev => {
       let nextValue = rawValue
 
       if (key === 'file') {
         const file = rawValue as File | null
+        console.log(file)
+        console.log(rawValue)
         return {
           ...prev,
           file: file,
@@ -149,7 +170,7 @@ function FormPage() {
       delete next[key]
       return next
     })
-  }, [])
+  }
 
   const validate = (stepIndex: number): Errors => {
     const fields = STEPS[stepIndex].fields
@@ -181,11 +202,11 @@ function FormPage() {
     }
     switch (action) {
       case 'NEXT':
-        setStep(s => s + 1)
+        setStep((s: number) => s + 1)
         break
 
       case 'BACK':
-        setStep(s => s - 1)
+        setStep((s: number) => s - 1)
         setErrors({})
         break
 
