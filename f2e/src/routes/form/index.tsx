@@ -9,8 +9,9 @@ interface FormData {
   select: string
   file: File | null
   fileName: string
+  filePreview: string
   radio: string
-  checkbox: string[]
+  checkbox: { [key: string]: boolean; }
 }
 type FormKey = keyof FormData
 type FieldType = 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'file'
@@ -22,19 +23,19 @@ interface FieldConfig {
   options?: any[]
   errorText?: string
 }
-
 type Errors = Partial<Record<FormKey, string>>
 
 const STORAGE_KEY = 'formCookie'
-
+const CHECKBOX_OPTIONS = ['項目一', '項目二', '項目三', '項目四', '項目五', '項目六']
 const DEFAULT_DATA: FormData = {
   name: '',
   textarea: '',
   select: '',
   file: null,
   fileName: '',
+  filePreview: '',
   radio: '',
-  checkbox: [],
+  checkbox: Object.fromEntries(CHECKBOX_OPTIONS.map(opt => [opt, false])),
 }
 //---
 const STEPS: { title: string; fields: FieldConfig[] }[] = [
@@ -76,28 +77,28 @@ const STEPS: { title: string; fields: FieldConfig[] }[] = [
         key: 'checkbox',
         label: '多選',
         type: 'checkbox',
-        options: ['項目一', '項目二', '項目三', '項目四', '項目五', '項目六'],
+        options: CHECKBOX_OPTIONS,
         errorText: '請至少選擇一項',
       },
     ],
   },
 ]
 //---
-function save(step: number, data: FormData) {
+function saveCookie(step: number, data: FormData) {
   const storageData = encodeURIComponent(JSON.stringify({
     step,
     data: { ...data, file: null },
   }))
   document.cookie = `${STORAGE_KEY}=${storageData}; path=/; max-age=86400;`
 }
-const fetchFormDataFromCookie = createServerFn({ method: 'GET' })
+const fetchCookie = createServerFn({ method: 'GET' })
   .handler(async () => {
     const cookies = getCookies()
     const rawCookie = cookies[STORAGE_KEY]
     const data = rawCookie ? JSON.parse(decodeURIComponent(rawCookie)) : null
     return data
   })
-function clear() {
+function clearCookie() {
   document.cookie = `${STORAGE_KEY}=; path=/; max-age=0;`
 }
 
@@ -113,7 +114,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 //---
 export const Route = createFileRoute('/form/')({
   beforeLoad: async () => {
-    const initialFormData = await fetchFormDataFromCookie()
+    const initialFormData = await fetchCookie()
     return {
       initialFormData,
     }
@@ -132,36 +133,35 @@ function FormPage() {
   const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
-    save(step, formData)
+    saveCookie(step, formData)
   }, [step, formData])
 
 
   const handleChange = (key: FormKey, rawValue: any) => {
     setFormData(prev => {
-      let nextValue = rawValue
-
       if (key === 'file') {
         const file = rawValue as File | null
         console.log(file)
-        console.log(rawValue)
         return {
           ...prev,
-          file: file,
+          file,
           fileName: file ? file.name : '',
+          filePreview: file ? URL.createObjectURL(file) : '',
         }
       }
       if (key === 'checkbox') {
         const item = rawValue as string
-        const currentList = prev.checkbox
-        const updatedList = currentList.includes(item)
-          ? currentList.filter(i => i !== item)
-          : [...currentList, item]
-
-        return { ...prev, checkbox: updatedList }
+        return {
+          ...prev,
+          checkbox: {
+            ...prev.checkbox,
+            [item]: !prev.checkbox[item],
+          },
+        }
       }
       return {
         ...prev,
-        [key]: nextValue,
+        [key]: rawValue
       }
     })
     setErrors(prev => {
@@ -180,7 +180,7 @@ function FormPage() {
       if (!field.errorText) return
       let hasError = false
       if (field.key === 'checkbox') {
-        hasError = formData.checkbox.length === 0
+        hasError = !Object.values(formData.checkbox).some(Boolean)
       } else if (field.key === 'file') {
         hasError = !formData.fileName
       } else {
@@ -189,6 +189,20 @@ function FormPage() {
       if (hasError) e[field.key] = field.errorText
     })
     return e
+  }
+
+  const submitDate = (data: FormData) => {
+    const submitFormDate = new FormData()
+    submitFormDate.append('name', data.name)
+    submitFormDate.append('textarea', data.textarea)
+    submitFormDate.append('select', data.select)
+    submitFormDate.append('radio', data.radio)
+    if (data.file) submitFormDate.append('file', data.file)
+    Object.entries(data.checkbox).forEach(([key, value]) => {
+      submitFormDate.append(`checkbox[${key}]`, value ? 'true' : 'false')
+    })
+
+    console.log([...submitFormDate.entries()])
   }
 
   const handleAction = (action: FormAction) => {
@@ -210,17 +224,18 @@ function FormPage() {
         break
 
       case 'SUBMIT':
-        console.log('submit:', formData)
-        clear()
+        submitDate(formData)
+        clearCookie()
         setSubmitted(true)
         break
 
       case 'RESET':
+        if (formData.filePreview) URL.revokeObjectURL(formData.filePreview)
         setFormData(DEFAULT_DATA)
         setStep(0)
         setErrors({})
         setSubmitted(false)
-        clear()
+        clearCookie()
         break
     }
   }
@@ -233,7 +248,7 @@ function FormPage() {
           送出成功
         </h2>
 
-        <pre className="text-xs bg-gray-100 p-3 rounded">
+        <pre className="text-xs bg-gray-100 p-3 rounded whitespace-pre-wrap">
           {JSON.stringify(formData, null, 2)}
         </pre>
         <div className="flex gap-4 pt-2">
@@ -292,8 +307,7 @@ function FormPage() {
                         value={value as string}
                         placeholder={field.label}
                         onChange={e => handleChange(field.key, e.target.value)}
-                        className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
-                          }`}
+                        className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'}`}
                       />
                     </div>
                   )
@@ -308,8 +322,7 @@ function FormPage() {
                         placeholder={field.label}
                         value={value as string}
                         onChange={e => handleChange(field.key, e.target.value)}
-                        className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
-                          }`}
+                        className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'}`}
                       />
                     </div>
                   )
@@ -323,8 +336,7 @@ function FormPage() {
                       <select
                         value={value as string}
                         onChange={e => handleChange(field.key, e.target.value)}
-                        className={`border p-2 w-full rounded transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
-                          }`}
+                        className={`border p-2 w-full rounded transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'}`}
                       >
                         <option value="">請選擇{field.label}</option>
                         {field.options?.map(opt => (
@@ -344,9 +356,11 @@ function FormPage() {
                         className={`flex flex-col items-center justify-center border rounded p-6 cursor-pointer transition-colors ${hasError ? 'border-red-500 bg-red-50/10' : 'border-gray-200'
                           }`}
                       >
-                        <span className="text-sm text-gray-500">{formData.fileName || '點擊選擇或拖曳檔案'}</span>
+                        {formData.filePreview ? (<img src={formData.filePreview} className="max-h-40 object-contain rounded" />) : (<span className="text-sm text-gray-500">點擊選擇或拖曳檔案</span>)}
+                        {formData.fileName && (<span className="text-xs text-gray-400 mt-2">{formData.fileName}</span>)}
                         <input
                           type="file"
+                          accept="image/*"
                           className="hidden"
                           onChange={e => e.target.files?.[0] && handleChange('file', e.target.files[0])}
                         />
@@ -385,12 +399,11 @@ function FormPage() {
                       {field.options?.map((opt: string) => (
                         <label
                           key={opt}
-                          className={`flex items-center gap-3 p-3 border rounded transition-colors ${hasError ? 'border-red-500' : 'border-gray-200'
-                            }`}
+                          className={`flex items-center gap-3 p-3 border rounded transition-colors ${hasError ? 'border-red-500' : 'border-gray-200'}`}
                         >
                           <input
                             type="checkbox"
-                            checked={formData.checkbox.includes(opt)}
+                            checked={!!formData.checkbox[opt]}
                             onChange={() => handleChange('checkbox', opt)}
                           />
                           {opt}
