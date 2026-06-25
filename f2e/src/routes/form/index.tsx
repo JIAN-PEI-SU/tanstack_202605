@@ -84,17 +84,17 @@ const STEPS: { title: string; fields: FieldConfig[] }[] = [
 ]
 //---
 function save(step: number, data: FormData) {
-  const storageData = JSON.stringify({
+  const storageData = encodeURIComponent(JSON.stringify({
     step,
     data: { ...data, file: null },
-  })
+  }))
   document.cookie = `${STORAGE_KEY}=${storageData}; path=/; max-age=86400;`
 }
 const fetchFormDataFromCookie = createServerFn({ method: 'GET' })
   .handler(async () => {
     const cookies = getCookies()
     const rawCookie = cookies[STORAGE_KEY]
-    const data = rawCookie ? JSON.parse(rawCookie) : null
+    const data = rawCookie ? JSON.parse(decodeURIComponent(rawCookie)) : null
     return data
   })
 function clear() {
@@ -130,7 +130,6 @@ function FormPage() {
   }))
   const [errors, setErrors] = useState<Errors>({})
   const [submitted, setSubmitted] = useState(false)
-  console.log(initialFormData)
 
   useEffect(() => {
     save(step, formData)
@@ -253,9 +252,29 @@ function FormPage() {
 
   return (
     <main className="max-w-md mx-auto pt-10 space-y-4">
-      <h2 className="font-bold text-lg">
-        {currentStep.title}
-      </h2>
+
+      {/* 步驟 */}
+      <div className="flex items-center mb-8">
+        {STEPS.map((label, i) => (
+          <div key={i} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center">
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium border
+                  ${i < step ? 'bg-(--sea-ink) border-(--sea-ink) text-white'
+                    : i === step ? 'bg-(--sea-ink-soft) border-(--sea-ink-soft) text-white'
+                      : 'border-gray-300 text-gray-400'}`}
+              >
+                {i < step ? '✓' : i + 1}
+              </div>
+              <span className="text-xs mt-1 text-gray-500">{label.title}</span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div className={`flex-1 h-px mx-2 mb-4 ${i < step ? 'bg-(--sea-ink)' : 'bg-gray-200'}`} />
+            )}
+          </div>
+        ))}
+      </div>
+
       {currentStep.fields.map(field => {
         const value = formData[field.key]
         const hasError = !!errors[field.key]
@@ -265,54 +284,74 @@ function FormPage() {
               switch (field.type) {
                 case 'text':
                   return (
-                    <input
-                      value={value as string}
-                      placeholder={field.label}
-                      onChange={e => handleChange(field.key, e.target.value)}
-                      className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
-                        }`}
-                    />
+                    <div className="space-y-2">
+                      <label className="block text-sm text-gray-600">
+                        {field.label}<span className="text-red-500 px-2">*</span>
+                      </label>
+                      <input
+                        value={value as string}
+                        placeholder={field.label}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                        className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
+                          }`}
+                      />
+                    </div>
                   )
 
                 case 'textarea':
                   return (
-                    <textarea
-                      placeholder={field.label}
-                      value={value as string}
-                      onChange={e => handleChange(field.key, e.target.value)}
-                      className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
-                        }`}
-                    />
+                    <div className="space-y-2">
+                      <label className="block text-sm text-gray-600">
+                        {field.label}<span className="text-red-500 px-2">*</span>
+                      </label>
+                      <textarea
+                        placeholder={field.label}
+                        value={value as string}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                        className={`w-full border rounded-lg px-3 py-2 transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
+                          }`}
+                      />
+                    </div>
                   )
 
                 case 'select':
                   return (
-                    <select
-                      value={value as string}
-                      onChange={e => handleChange(field.key, e.target.value)}
-                      className={`border p-2 w-full rounded transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
-                        }`}
-                    >
-                      <option value="">請選擇{field.label}</option>
-                      {field.options?.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
+                    <div className="space-y-2">
+                      <label className="block text-sm text-gray-600">
+                        {field.label}<span className="text-red-500 px-2">*</span>
+                      </label>
+                      <select
+                        value={value as string}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                        className={`border p-2 w-full rounded transition-colors ${hasError ? 'border-red-500 focus:outline-red-500' : 'border-gray-200'
+                          }`}
+                      >
+                        <option value="">請選擇{field.label}</option>
+                        {field.options?.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
                   )
 
                 case 'file':
                   return (
-                    <label
-                      className={`flex flex-col items-center justify-center border rounded p-6 cursor-pointer transition-colors ${hasError ? 'border-red-500 bg-red-50/10' : 'border-gray-200'
-                        }`}
-                    >
-                      <span className="text-sm text-gray-500">{formData.fileName || '點擊選擇或拖曳檔案'}</span>
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={e => e.target.files?.[0] && handleChange('file', e.target.files[0])}
-                      />
-                    </label>
+                    <div className="space-y-2">
+                      <label className="block text-sm text-gray-600">
+                        {field.label}<span className="text-red-500 px-2">*</span>
+                      </label>
+                      <label
+                        className={`flex flex-col items-center justify-center border rounded p-6 cursor-pointer transition-colors ${hasError ? 'border-red-500 bg-red-50/10' : 'border-gray-200'
+                          }`}
+                      >
+                        <span className="text-sm text-gray-500">{formData.fileName || '點擊選擇或拖曳檔案'}</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={e => e.target.files?.[0] && handleChange('file', e.target.files[0])}
+                        />
+                      </label>
+                    </div>
                   )
 
                 case 'radio':
@@ -368,6 +407,7 @@ function FormPage() {
           </div>
         )
       })}
+
       {/* 按鈕 */}
       <div className="flex gap-2 pt-2">
         {step > 0 && (
