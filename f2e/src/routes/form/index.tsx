@@ -84,6 +84,9 @@ const STEPS: { title: string; fields: FieldConfig[] }[] = [
   },
 ]
 //---
+function clearCookie() {
+  document.cookie = `${STORAGE_KEY}=; path=/; max-age=0;`
+}
 function saveCookie(step: number, data: FormData) {
   const storageData = encodeURIComponent(JSON.stringify({
     step,
@@ -91,26 +94,23 @@ function saveCookie(step: number, data: FormData) {
   }))
   document.cookie = `${STORAGE_KEY}=${storageData}; path=/; max-age=86400;`
 }
-const fetchCookie = createServerFn({ method: 'GET' })
-  .handler(async () => {
-    const cookies = getCookies()
-    const rawCookie = cookies[STORAGE_KEY]
-    const data = rawCookie ? JSON.parse(decodeURIComponent(rawCookie)) : null
-    return data
-  })
-function clearCookie() {
-  document.cookie = `${STORAGE_KEY}=; path=/; max-age=0;`
-}
 
+export const fetchCookie = createServerFn().handler(async () => {
+  const cookies = getCookies()
+  const rawCookie = cookies[STORAGE_KEY]
+  const data = rawCookie ? JSON.parse(decodeURIComponent(rawCookie)) : null
+  return { _cookie: data }
+})
 // 把 File 物件轉成 Base64 字串的函式
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.readAsDataURL(file)
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = (error) => reject(error)
-  })
-}
+// const fileToBase64 = (file: File): Promise<string> => {
+//   return new Promise((resolve, reject) => {
+//     const reader = new FileReader()
+//     reader.readAsDataURL(file)
+//     reader.onload = () => resolve(reader.result as string)
+//     reader.onerror = (error) => reject(error)
+//   })
+// }
+
 //---
 export const Route = createFileRoute('/form/')({
   beforeLoad: async () => {
@@ -124,10 +124,10 @@ export const Route = createFileRoute('/form/')({
 //---
 function FormPage() {
   const { initialFormData } = Route.useRouteContext()
-  const [step, setStep] = useState(initialFormData?.step ?? 0)
+  const [step, setStep] = useState(initialFormData?._cookie?.step ?? 0)
   const [formData, setFormData] = useState<FormData>(() => ({
     ...DEFAULT_DATA,
-    ...initialFormData?.data,
+    ...initialFormData?._cookie?.data,
   }))
   const [errors, setErrors] = useState<Errors>({})
   const [submitted, setSubmitted] = useState(false)
